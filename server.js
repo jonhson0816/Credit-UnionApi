@@ -8,6 +8,7 @@ const morgan = require('morgan');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
+const corsConfig = require('./middleware/corsConfig');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -36,6 +37,9 @@ const contactRoutes = require('./routes/contactRoutes');
 // Initialize express
 const app = express();
 
+//CORS configuration before other middleware
+app.use(corsConfig);
+
 // Validate required environment variables
 const requiredEnvVars = [
   'MONGODB_URI',
@@ -50,6 +54,7 @@ requiredEnvVars.forEach(envVar => {
   }
 });
 
+// Database connection
 // Database connection with DNS override
 const dns = require('dns');
 const { Resolver } = require('dns').promises;
@@ -58,9 +63,9 @@ const { Resolver } = require('dns').promises;
 dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
 
 const mongooseOptions = {
-  serverSelectionTimeoutMS: 30000,
+  serverSelectionTimeoutMS: 30000, // Increased timeout
   socketTimeoutMS: 45000,
-  family: 4,
+  family: 4, // Force IPv4
   retryWrites: true,
   retryReads: true,
 };
@@ -108,50 +113,30 @@ mongoose.connection.on('disconnected', () => {
   console.log('⚠ Mongoose disconnected from MongoDB');
 });
 
-// Trust proxy if in production
-if (process.env.NODE_ENV === 'production') {
-  app.set('trust proxy', 1);
-}
-
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false
 }));
 
-// CORS configuration - FIXED
+// CORS configuration
 const corsOptions = {
-  origin: function (origin, callback) {
-    const allowedOrigins = [
-      'https://credito-app.com',
-      'http://127.0.0.1:5173',
-      'http://localhost:5173'
-    ];
-    
-    // Allow requests with no origin (like mobile apps or Postman)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(null, true); // For development, allow all origins
-    }
-  },
+  origin: process.env.NODE_ENV === 'production'
+    ? process.env.FRONTEND_URL
+    : ['http://localhost:5173', 'http://127.0.0.1:5173','http://localhost:5173/'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  maxAge: 86400,
-  optionsSuccessStatus: 200
+  maxAge: 86400
 };
 
-app.use(cors(corsOptions));
-
-// Handle preflight requests
-app.options('*', cors(corsOptions));
-
-app.use(cors(corsOptions));
+// Trust proxy if in production
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 
 // Middleware
+app.use(cors(corsOptions));
 app.use(compression());
 app.use(process.env.NODE_ENV === 'production' ? morgan('combined') : morgan('dev'));
 app.use(cookieParser());
@@ -221,7 +206,7 @@ app.use('/api/branch-locator', branchLocatorRoutes);
 // Financial Education routes (mixed public/protected)
 app.use('/api/financial-education', financialEducationRoutes);
 
-// Career routes (PUBLIC - no authentication required)
+// Career routes (PUBLIC - no authentication required) ← ADD THIS SECTION
 app.use('/api/careers', careerRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/contact', contactRoutes);
