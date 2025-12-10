@@ -90,91 +90,121 @@ const profileController = {
    * Upload profile image
    */
   uploadProfileImage: async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({
-          success: false,
-          message: 'No image file provided'
-        });
+  try {
+    console.log('Upload request received');
+    console.log('File:', req.file);
+    console.log('User:', req.user?._id);
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No image file provided'
+      });
+    }
+
+    const userId = req.user._id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      // Clean up uploaded file
+      if (req.file && req.file.path) {
+        await fs.unlink(req.file.path).catch(err => 
+          console.error('Error deleting temp file:', err)
+        );
       }
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
 
-      const userId = req.user._id;
-      const user = await User.findById(userId);
-
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
-
-      let imageUrl;
-      
-      // If using cloudinary
-      if (process.env.USE_CLOUDINARY === 'true' && cloudinary) {
+    let imageUrl;
+    
+    // If using cloudinary
+    if (process.env.USE_CLOUDINARY === 'true' && cloudinary) {
+      try {
         // Delete old image if exists
         if (user.cloudinaryImageId) {
-          await cloudinary.uploader.destroy(user.cloudinaryImageId);
+          await cloudinary.uploader.destroy(user.cloudinaryImageId).catch(err =>
+            console.error('Error deleting old Cloudinary image:', err)
+          );
         }
         
         // Upload to cloudinary
         const result = await cloudinary.uploader.upload(req.file.path, {
-          folder: 'navy-federal/profiles'
+          folder: 'navy-federal/profiles',
+          transformation: [
+            { width: 400, height: 400, crop: 'fill' },
+            { quality: 'auto' }
+          ]
         });
         
         user.profileImage = result.secure_url;
         user.cloudinaryImageId = result.public_id;
         
         // Delete local file
-        await fs.unlink(req.file.path);
+        await fs.unlink(req.file.path).catch(err => 
+          console.error('Error deleting temp file:', err)
+        );
         
         imageUrl = result.secure_url;
-      } else {
-        // Use local file storage
-        // Delete old image if it exists and is local
-        if (user.profileImage && user.profileImage.startsWith('/uploads/')) {
-          try {
-            const oldImagePath = path.join(__dirname, '..', user.profileImage);
-            await fs.unlink(oldImagePath);
-          } catch (unlinkError) {
-            console.error('Error deleting old profile image:', unlinkError);
-            // Continue even if delete fails
-          }
-        }
-        
-        // Set new image path
+      } catch (cloudinaryError) {
+        console.error('Cloudinary upload error:', cloudinaryError);
+        // Fall back to local storage
         const imagePath = `/uploads/profiles/${req.file.filename}`;
         user.profileImage = imagePath;
         user.cloudinaryImageId = null;
-        
         imageUrl = imagePath;
       }
-      
-      await user.save();
-
-      res.json({
-        success: true,
-        message: 'Profile image updated successfully',
-        profileImage: imageUrl
-      });
-    } catch (error) {
-      // Try to delete temporary file if it exists
-      if (req.file) {
+    } else {
+      // Use local file storage
+      // Delete old image if it exists and is local
+      if (user.profileImage && user.profileImage.startsWith('/uploads/')) {
         try {
-          await fs.unlink(req.file.path);
+          const oldImagePath = path.join(__dirname, '..', user.profileImage);
+          await fs.unlink(oldImagePath).catch(err => 
+            console.error('Error deleting old image:', err)
+          );
         } catch (unlinkError) {
-          console.error('Error deleting temporary file:', unlinkError);
+          console.error('Error deleting old profile image:', unlinkError);
         }
       }
-
-      console.error('Profile image upload error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to upload profile image',
-        error: error.message
-      });
+      
+      // Set new image path
+      const imagePath = `/uploads/profiles/${req.file.filename}`;
+      user.profileImage = imagePath;
+      user.cloudinaryImageId = null;
+      
+      imageUrl = imagePath;
     }
-  },
+    
+    await user.save();
+
+    console.log('Profile image updated successfully:', imageUrl);
+
+    res.json({
+      success: true,
+      message: 'Profile image updated successfully',
+      profileImage: imageUrl
+    });
+  } catch (error) {
+    // Try to delete temporary file if it exists
+    if (req.file && req.file.path) {
+      try {
+        await fs.unlink(req.file.path);
+      } catch (unlinkError) {
+        console.error('Error deleting temporary file:', unlinkError);
+      }
+    }
+
+    console.error('Profile image upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload profile image',
+      error: error.message
+    });
+  }
+},
 
   /**
    * Remove profile image
