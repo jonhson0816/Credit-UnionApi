@@ -54,7 +54,6 @@ requiredEnvVars.forEach(envVar => {
   }
 });
 
-// Database connection
 // Database connection with DNS override
 const dns = require('dns');
 const { Resolver } = require('dns').promises;
@@ -122,7 +121,7 @@ app.use(helmet({
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production'
     ? process.env.FRONTEND_URL
-    : ['http://localhost:5173', 'http://127.0.0.1:5173','http://localhost:5173/'],
+    : ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5173/'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -193,6 +192,17 @@ const loginLimiter = rateLimit({
   skipSuccessfulRequests: true
 });
 
+// ROOT ROUTE - This is the fix for 404 on root
+app.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    message: 'Navy Federal Credit Union API',
+    version: '1.0.0',
+    environment: process.env.NODE_ENV,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Authentication routes (no auth middleware needed)
 app.use('/api/auth', loginLimiter, authRoutes);
 
@@ -206,7 +216,7 @@ app.use('/api/branch-locator', branchLocatorRoutes);
 // Financial Education routes (mixed public/protected)
 app.use('/api/financial-education', financialEducationRoutes);
 
-// Career routes (PUBLIC - no authentication required) ← ADD THIS SECTION
+// Career routes (PUBLIC - no authentication required)
 app.use('/api/careers', careerRoutes);
 app.use('/api/news', newsRoutes);
 app.use('/api/contact', contactRoutes);
@@ -232,6 +242,7 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'healthy',
     environment: process.env.NODE_ENV,
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     timestamp: new Date().toISOString()
   });
 });
@@ -278,6 +289,7 @@ app.use((req, res) => {
   res.status(404).json({
     status: 'error',
     message: 'Resource not found',
+    path: req.originalUrl,
     code: 'NOT_FOUND'
   });
 });
@@ -288,24 +300,34 @@ const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
 });
 
-// Graceful shutdown
+// Graceful shutdown - FIXED: Removed callback from close()
 process.on('SIGTERM', () => {
   console.log('SIGTERM received. Shutting down gracefully...');
   server.close(() => {
-    mongoose.connection.close(false, () => {
-      console.log('MongoDB connection closed.');
-      process.exit(0);
-    });
+    mongoose.connection.close()
+      .then(() => {
+        console.log('MongoDB connection closed.');
+        process.exit(0);
+      })
+      .catch((err) => {
+        console.error('Error closing MongoDB connection:', err);
+        process.exit(1);
+      });
   });
 });
 
 process.on('SIGINT', () => {
   console.log('SIGINT received. Shutting down gracefully...');
   server.close(() => {
-    mongoose.connection.close(false, () => {
-      console.log('MongoDB connection closed.');
-      process.exit(0);
-    });
+    mongoose.connection.close()
+      .then(() => {
+        console.log('MongoDB connection closed.');
+        process.exit(0);
+      })
+      .catch((err) => {
+        console.error('Error closing MongoDB connection:', err);
+        process.exit(1);
+      });
   });
 });
 
