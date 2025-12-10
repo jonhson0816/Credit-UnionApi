@@ -3,8 +3,10 @@ const cors = require('cors');
 // Always allow these origins regardless of environment
 const allowedOrigins = [
   'http://localhost:5173',
+  'http://localhost:3000',
   'http://localhost:10000',
   'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
   'https://credito-app.com',
   'https://www.credito-app.com'
 ];
@@ -27,7 +29,15 @@ const corsConfig = cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With', 
+    'Accept',
+    'Cache-Control',
+    'Pragma',
+    'Expires'
+  ],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
   preflightContinue: false,
   optionsSuccessStatus: 204
