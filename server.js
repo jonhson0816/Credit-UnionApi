@@ -37,8 +37,11 @@ const contactRoutes = require('./routes/contactRoutes');
 // Initialize express
 const app = express();
 
-//CORS configuration before other middleware
+// CRITICAL: Apply CORS FIRST, before any other middleware
 app.use(corsConfig);
+
+// Handle preflight requests explicitly
+app.options('*', corsConfig);
 
 // Validate required environment variables
 const requiredEnvVars = [
@@ -62,9 +65,9 @@ const { Resolver } = require('dns').promises;
 dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
 
 const mongooseOptions = {
-  serverSelectionTimeoutMS: 30000, // Increased timeout
+  serverSelectionTimeoutMS: 30000,
   socketTimeoutMS: 45000,
-  family: 4, // Force IPv4
+  family: 4,
   retryWrites: true,
   retryReads: true,
 };
@@ -117,41 +120,12 @@ app.use(helmet({
   contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false
 }));
 
-// CORS configuration
-const corsOptions = {
-  origin: function (origin, callback) {
-    const allowedOrigins = process.env.NODE_ENV === 'production'
-      ? ['https://credito-app.com']
-      : ['http://localhost:5173', 'http://127.0.0.1:5173', 'https://credito-app.com'];
-    
-    // Allow requests with no origin (mobile apps, Postman, curl)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.warn('⚠️ CORS blocked origin:', origin);
-      callback(null, false);
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  maxAge: 86400,
-  optionsSuccessStatus: 200
-};
-
 // Trust proxy if in production
 if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
-// Middleware
-app.use(cors(corsOptions));
-
-// Middleware
-app.use(cors(corsOptions));
+// Other middleware (CORS already applied above)
 app.use(compression());
 app.use(process.env.NODE_ENV === 'production' ? morgan('combined') : morgan('dev'));
 app.use(cookieParser());
@@ -208,7 +182,7 @@ const loginLimiter = rateLimit({
   skipSuccessfulRequests: true
 });
 
-// ROOT ROUTE - This is the fix for 404 on root
+// ROOT ROUTE
 app.get('/', (req, res) => {
   res.json({
     status: 'online',
@@ -316,7 +290,7 @@ const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
 });
 
-// Graceful shutdown - FIXED: Removed callback from close()
+// Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received. Shutting down gracefully...');
   server.close(() => {
