@@ -1,8 +1,8 @@
 const rateLimit = require('express-rate-limit');
 
 const transactionLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute window
-  max: 30, // 30 requests per minute
+  windowMs: 60 * 1000,
+  max: 30,
   message: {
     status: 'error',
     message: 'Too many requests, please try again later.',
@@ -10,7 +10,7 @@ const transactionLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  skipSuccessfulRequests: true // Only count failed requests
+  skipSuccessfulRequests: true
 });
 
 module.exports = transactionLimiter;

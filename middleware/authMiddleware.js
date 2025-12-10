@@ -49,8 +49,8 @@ const authMiddleware = async (req, res, next) => {
     // CRITICAL: Set both _id AND id for backward compatibility
     req.user = {
       ...user,
-      id: user._id.toString(), // Add 'id' property
-      _id: user._id              // Keep '_id' property
+      id: user._id.toString(),
+      _id: user._id
     };
     
     req.token = token;
