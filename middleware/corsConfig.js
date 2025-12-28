@@ -8,7 +8,7 @@ const allowedOrigins = [
   'http://127.0.0.1:5173',
   'http://127.0.0.1:3000',
   'https://credito-app.com',
-  'https://www.credito-app.com'
+  'https://credit-union-inky.vercel.app'
 ];
 
 const corsConfig = cors({
